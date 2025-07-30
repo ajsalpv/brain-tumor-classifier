@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brain Tumor Classification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .upload-section {
+            border: 2px dashed #ccc;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            border-radius: 10px;
+        }
+        .upload-section:hover {
+            border-color: #007bff;
+        }
+        input[type="file"] {
+            margin: 20px 0;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            display: none;
+        }
+        .image-preview {
+            max-width: 300px;
+            max-height: 300px;
+            margin: 20px auto;
+            display: block;
+            border-radius: 5px;
+        }
+        .probability-bar {
+            background-color: #e9ecef;
+            height: 20px;
+            border-radius: 10px;
+            margin: 5px 0;
+            overflow: hidden;
+        }
+        .probability-fill {
+            height: 100%;
+            background-color: #007bff;
+            transition: width 0.3s ease;
+        }
+        .error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            color: #155724;
+            background-color: #d4edda;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .loading {
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 Brain Tumor Classification</h1>
+        
+        <div class="upload-section">
+            <h3>Upload Brain MRI Image</h3>
+            <input type="file" id="imageInput" accept="image/*" onchange="previewImage()">
+            <br>
+            <button onclick="classifyImage()" id="classifyBtn" disabled>Classify Image</button>
+        </div>
+        
+        <img id="imagePreview" class="image-preview" style="display: none;">
+        
+        <div id="loading" class="loading" style="display: none;">
+            <p>Analyzing image... Please wait.</p>
+        </div>
+        
+        <div id="results" class="results">
+            <h3>Prediction Results</h3>
+            <div id="prediction"></div>
+            <div id="probabilities"></div>
+        </div>
+        
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        function previewImage() {
+            const input = document.getElementById('imageInput');
+            const preview = document.getElementById('imagePreview');
+            const classifyBtn = document.getElementById('classifyBtn');
+            
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    classifyBtn.disabled = false;
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function classifyImage() {
+            const input = document.getElementById('imageInput');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const error = document.getElementById('error');
+            const classifyBtn = document.getElementById('classifyBtn');
+            
+            if (!input.files || !input.files[0]) {
+                showError('Please select an image first.');
+                return;
+            }
+            
+            // Show loading, hide results
+            loading.style.display = 'block';
+            results.style.display = 'none';
+            error.style.display = 'none';
+            classifyBtn.disabled = true;
+            
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+            
+            fetch('/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                loading.style.display = 'none';
+                classifyBtn.disabled = false;
+                
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    showResults(data);
+                }
+            })
+            .catch(err => {
+                loading.style.display = 'none';
+                classifyBtn.disabled = false;
+                showError('Error: ' + err.message);
+            });
+        }
+
+        function showResults(data) {
+            const results = document.getElementById('results');
+            const prediction = document.getElementById('prediction');
+            const probabilities = document.getElementById('probabilities');
+            
+            prediction.innerHTML = `
+                <div class="success">
+                    <strong>Predicted Class:</strong> ${data.predicted_class}<br>
+                    <strong>Confidence:</strong> ${(data.confidence * 100).toFixed(2)}%
+                </div>
+            `;
+            
+            let probHtml = '<h4>All Class Probabilities:</h4>';
+            for (const [className, prob] of Object.entries(data.all_probabilities)) {
+                const percentage = (prob * 100).toFixed(2);
+                probHtml += `
+                    <div style="margin: 10px 0;">
+                        <strong>${className}:</strong> ${percentage}%
+                        <div class="probability-bar">
+                            <div class="probability-fill" style="width: ${percentage}%"></div>
+                        </div>
+                    </div>
+                `;
+            }
+            probabilities.innerHTML = probHtml;
+            
+            results.style.display = 'block';
+        }
+
+        function showError(message) {
+            const error = document.getElementById('error');
+            error.textContent = message;
+            error.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
