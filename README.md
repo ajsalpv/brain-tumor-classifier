@@ -16,3 +16,5 @@ A PyTorch-based CNN model to classify brain tumor types from MRI images, along w
 - Real-time predictions with confidence scores and class probabilities
 
 ---
+
+**Showcasing AI-powered medical image classification with PyTorch, Flask, and Streamlit.**
